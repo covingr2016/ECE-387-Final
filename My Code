@@ -1,1 +1,202 @@
-hih
+#include <Servo.h> // Includes library for micro servo
+#include <OneWire.h> // Includes the library for 1-Wire devices
+#include <DallasTemperature.h> // Includes library for the temperature sensor
+#include <LiquidCrystal.h> // Includes the library for the lcd
+
+LiquidCrystal lcd(A1, 7, 6, 5, 4, 3); // Creates a LiquidCrystal variable and specifies the pins it uses
+
+
+
+// INSTANCE VARIABLES
+int upInPin = 9; // Defines the pin number for the up button
+int upVal = 0; // Defines the starting value for the up button
+
+int pos = 0;    // variable to store the servo position
+int pin = 10;   // data pin to control servo
+
+int downInPin = 8; // Defines the pin number for the down button
+int downVal = 0; // Defines the starting value for the down button
+
+float sensorTemp; // Initializes the variable for the temperature sensor read in Fahrenheit
+float sensorTempC; // Initializes the variable for the temperature sensor read in Celsius
+
+int startTemp = 80; // Defines the starting value for the temperature to display
+int desiredTemp; // Initializes the variable for the temperature to be chosen
+
+int motor1Pin = A0;
+int motor2Pin = A2;
+int blinkPin = 13;
+
+int watertime = 3000; // how long to water in miliseconds
+//int waittime = 5000; // how long to wait between watering
+int prime = 5000;
+
+// Used to locate the temperature sensor
+#define ONE_WIRE_BUS 2
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+
+DeviceAddress insideThermometer = {0x28, 0x6F, 0x37, 0xA3, 0x06, 0x00, 0x00, 0xDC};
+
+// Arduino setup method
+void setup() {
+  
+  
+  // Defines all pin modes
+  pinMode(motor1Pin, OUTPUT);
+  pinMode(motor2Pin, OUTPUT);
+  pinMode(blinkPin, OUTPUT);
+  pinMode(upInPin, INPUT);
+  pinMode(downInPin, INPUT);
+  
+  // Initializes the LCD display interface
+  lcd.clear();
+  lcd.begin(16,2);
+
+  // Sets the resolution for the temperature sensor
+  Serial.begin(9600);
+  sensors.begin();
+  sensors.setResolution(insideThermometer, 10);
+
+
+
+ intro();
+ //priming();
+  
+}
+
+// Arduino loop method
+void loop() {
+  upVal = digitalRead(upInPin);
+  downVal = digitalRead(downInPin);
+    selectTemp();
+  }
+
+
+// Measures the temperature of the water using the temperature sensor
+void measureTemp() {
+  sensors.requestTemperatures();
+  sensorTempC = sensors.getTempC(insideThermometer);
+  sensorTemp = DallasTemperature::toFahrenheit(sensorTempC);
+  Serial.println(sensorTemp );
+  delay(500);
+  displayMeasuredTemp();
+}
+
+//Turns motor on when temp is less than desired
+void motor() {
+  if (sensorTemp < desiredTemp - 1) {
+    digitalWrite(motor1Pin, HIGH);
+    digitalWrite(blinkPin, HIGH);
+    delay(watertime);
+    digitalWrite(motor1Pin, LOW);
+    digitalWrite(blinkPin, LOW);
+    delay(5000);
+    measureTemp();
+  }
+  else if (sensorTemp > desiredTemp + 1) {
+    digitalWrite(motor2Pin, HIGH);
+    digitalWrite(blinkPin, HIGH);
+    delay(watertime);
+    digitalWrite(motor2Pin, LOW);
+    digitalWrite(blinkPin, LOW);
+    delay(5000);
+    measureTemp();
+  } 
+  else { 
+    digitalWrite(motor1Pin, LOW);
+    digitalWrite(motor2Pin, LOW);
+    digitalWrite(blinkPin, LOW);
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Temp Reached");
+    delay(3000);
+  }
+}
+
+void priming()
+{
+  lcd.clear();
+ lcd.setCursor(0, 0);
+ lcd.print("Priming Pumps...");
+  digitalWrite(motor1Pin, HIGH);
+  digitalWrite(motor2Pin, HIGH);
+  digitalWrite(blinkPin, HIGH);
+  delay(prime);
+  digitalWrite(motor1Pin, LOW);
+  digitalWrite(motor2Pin, LOW);
+  digitalWrite(blinkPin, LOW);
+  lcd.clear();
+}
+
+// Short introduction message is shown on the display to explain what the user should do 
+void intro() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Use UP and DOWN");
+  lcd.setCursor(0, 1);
+  lcd.print("to select temp.");
+  delay(2000);
+  lcd.clear();
+}
+
+
+// Allows the user to use the buttons to select a temperature
+void selectTemp() {
+  
+   if (upVal == LOW && downVal == LOW) {
+  } else if (upVal == HIGH && downVal == HIGH) {
+    desiredTemp = startTemp;
+    displayDesiredTemp();
+  } else if (upVal == HIGH) {
+    startTemp++;
+  } else if (downVal == HIGH) {
+    startTemp--;
+  }
+  lcd.setCursor(0, 0);
+  lcd.print("Select Temp:");
+  lcd.setCursor(13,0);
+  if (startTemp < 100) {
+    lcd.setCursor(13, 0);
+    lcd.print(" ");
+    lcd.print(startTemp);
+  } else {
+    lcd.print(startTemp);
+  }
+  if (upVal == LOW || downVal == LOW) {
+    delay(250);
+  }
+}
+
+// Displays the temperature measured by the temperature sensor
+void displayMeasuredTemp() {
+  lcd.setCursor(0, 0);
+  lcd.print("Temp:");
+  lcd.setCursor(6, 0);
+  lcd.print(sensorTemp);
+  lcd.setCursor(12, 0);
+  lcd.print((char)223);
+  lcd.setCursor(13, 0);
+  lcd.print("F");
+  motor();
+}
+
+// Displays the temperature that the user has chosen for 3 seconds before moving on
+void displayDesiredTemp() {
+  desiredTemp = startTemp;
+  lcd.clear();
+  lcd.setCursor(0, 1);
+  lcd.print ("Desired Temp:");
+  lcd.setCursor(13, 1);
+  if (desiredTemp < 100) {
+    lcd.setCursor(13, 1);
+    lcd.print(" ");
+    lcd.print(desiredTemp);
+  } else {
+    lcd.print(desiredTemp);
+  }
+  measureTemp();
+}
+
+
+
